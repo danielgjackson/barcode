@@ -2,7 +2,7 @@
 
 Generates a CODE128 barcode.
 
-Required files: `barcode.h` `barcode.c`
+Required files: [`barcode.h`](barcode.h) [`barcode.c`](barcode.c)
 
 Basic functions:
 
@@ -39,5 +39,5 @@ size_t BARCODE_BITMAP_SIZE_QUIET(unsigned int symbols);
 bool BARCODE_BIT(uint8_t *buffer, size_t offset);
 ```
 
-Demonstration program usage (`main.c`): `barcode "TEXT TO BECOME BARCODE"`
+Demonstration program usage from [`main.c`](main.c): `barcode "TEXT TO BECOME BARCODE"`
 
