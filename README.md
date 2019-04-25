@@ -28,15 +28,18 @@ size_t BARCODE_SYMBOLS_TEXT(unsigned int characters);
 
 ## Add text to your barcode
 
-Append the specified string to the barcode (you may make repeated calls):
+Append the specified string to the barcode:
 
 ```c
 void BarcodeAppend(barcode_t *barcode, const char *text);
 ```
 
+You may make repeated calls.
+
+
 ## Retrieve the finished barcode
 
-To completes the barcode and write the object as a bitmap (0=black, 1=white) using the specified buffer:
+To complete the barcode (if not already finished) and write the object as a bitmap (0=black, 1=white) using the specified buffer:
 
 ```c
 size_t BarcodeBits(barcode_t *barcode, uint8_t *buffer, size_t bufferSize, bool addQuietZone);
