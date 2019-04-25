@@ -1,0 +1,9 @@
+/.vs
+/.vscode
+/Release
+/Debug
+/x64
+/*.user
+/*.suo
+/*.opendb
+/barcode
