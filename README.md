@@ -33,7 +33,7 @@ size_t BARCODE_BITMAP_SIZE_NO_QUIET(unsigned int symbols);
 size_t BARCODE_BITMAP_SIZE_QUIET(unsigned int symbols);
 
 // Returns the bar/bit at the specified index in the output bitmap (false=black, true=white)
-bool BARCODE_BIT(uint8_t buffer, size_t offset);
+bool BARCODE_BIT(uint8_t *buffer, size_t offset);
 ```
 
 Demonstration program usage (`main.c`): `barcode "TEXT TO BECOME BARCODE"`
