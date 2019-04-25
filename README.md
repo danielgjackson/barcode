@@ -20,7 +20,10 @@ size_t BarcodeBits(barcode_t *barcode, uint8_t *buffer, size_t bufferSize, bool 
 Helper functions (actually implemented as macros, values are available at compile time):
 
 ```c
-// The maximum number of symbols required for the specified number of digits (strictly 0-9), even numbers are more efficient
+// The maximum number of symbols required for the EXACT specified number of digits (strictly 0-9), odd numbers are less efficient
+size_t BARCODE_SYMBOLS_NUMERIC_EXACT(unsigned int digits);
+
+// The maximum number of symbols required for numbers up to the specified number of digits (strictly 0-9)
 size_t BARCODE_SYMBOLS_NUMERIC(unsigned int digits);
 
 // The maximum number of symbols required for the specified amount of (non-control-character) ASCII text

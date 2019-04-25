@@ -26,9 +26,12 @@ typedef struct {
     bool error;
 } barcode_t;
 
-// The maximum number of symbols required for the specified number of digits (strictly 0-9), even numbers are more efficient
+// The maximum number of symbols required for the EXACT specified number of digits (strictly 0-9), odd numbers are less efficient
 // (Odd: START SYMBOL_PER_TWO_DIGITS CODE_CHANGE LAST_DIGIT CHECKSUM STOP; Even: START SYMBOL_PER_TWO_DIGITS CHECKSUM STOP;)
-#define BARCODE_SYMBOLS_NUMERIC(_digits) (3 + ((_digits) / 2) + (((_digits) & 1) ? 2 : 0))
+#define BARCODE_SYMBOLS_NUMERIC_EXACT(_digits) (3 + ((_digits) / 2) + (((_digits) & 1) ? 2 : 0))
+
+// The maximum number of symbols required for numbers up to the specified number of digits (strictly 0-9)
+#define BARCODE_SYMBOLS_NUMERIC(_digits) (3 + ((_digits) / 2) + 2)
 
 // The maximum number of symbols required for the specified amount of (non-control-character) ASCII text
 #define BARCODE_SYMBOLS_TEXT(_characters) (3 + (_characters))
