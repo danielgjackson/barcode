@@ -9,8 +9,6 @@
 
 #include "barcode.h"
 
-
-
 typedef enum
 {
     BARCODE_CODE_NONE,   // Not started
@@ -22,7 +20,8 @@ typedef enum
 
 typedef unsigned char barcode_symbol_t;
 
-typedef struct {
+typedef struct
+{
     uint8_t *buffer;
     size_t bufferSize;
     size_t offset;
@@ -35,7 +34,8 @@ typedef struct {
 } barcode_t;
 
 // 218 bytes
-static const uint16_t code128[109] = {
+static const uint16_t code128[107] =
+{
     // 16-bit packed format: rwwppppppppppppp 
     // (==0 = nothing; r = 1-bit reserved; w = 2-bits (width-10); p = 13-bit right-aligned pattern)
     // packed hex, packed bin.,      BSBSBSbs     val  CA  CB  CC = representation (0-105 are <11 bars>)
@@ -146,8 +146,8 @@ static const uint16_t code128[109] = {
     0x216F, // 0b0010000101101111, 0x21121400, // 104 _SB _SB _SB =136 _SB="START (Code B)"
     0x2163, // 0b0010000101100011, 0x21123200, // 105 _SC _SC _SC =137 _SC="START (Code C)"
     0x6714, // 0b0110011100010100, 0x23311120, // 106 _ST _ST _ST =138 _ST="STOP" <13 bars>
-    0x03FF, // 0b0000001111111111, 0x0000000A, // 107 _QZ _QZ _QZ =139 _QZ="QUIET" <10 bars>
-    0x0000, // 0b0000000000000000, 0x00000000, // 108 _NO _NO _NO =140 _NO=(none) <0 bars>
+    //0x03FF, // 0b0000001111111111, 0x0000000A, // 107 _QZ _QZ _QZ =139 _QZ="QUIET" <10 bars>
+    //0x0000, // 0b0000000000000000, 0x00000000, // 108 _NO _NO _NO =140 _NO=(none) <0 bars>
 };
 
 static void BarcodeWriteBits(barcode_t *barcode, uint16_t pattern, int width)

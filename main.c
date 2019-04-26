@@ -2,27 +2,45 @@
 // Dan Jackson, 2019
 
 #ifdef _WIN32
-#include <Windows.h>
+#include <windows.h>
 #endif
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "barcode.h"
 
-static void PrintBarcode(const char *value)
+static void PrintBarcode(const char *value, int quiet)
 {
     // Generates the barcode as a bitmap (0=black, 1=white) using the specified buffer, returns the length in bars/bits. Optionally adds a 10-unit quiet zone either side.
     uint8_t bitmap[BARCODE_SIZE_TEXT(14, BARCODE_QUIET_STANDARD)] = {0};
-    size_t length = Barcode(bitmap, sizeof(bitmap), BARCODE_QUIET_STANDARD, value);
-
+    size_t length = Barcode(bitmap, sizeof(bitmap), quiet, value);
+    //printf("Length = %d\n", (int)length);
     for (int repeat = 0; repeat < 5; repeat++)
     {
+#if 1 // Two bars per character
+        for (int i = 0; i < length; i += 2)
+        {
+            bool bit0 = BARCODE_BIT(bitmap, i);
+            bool bit1 = BARCODE_BIT(bitmap, i + 1);
+            int value = (bit0 ? 2 : 0) + (bit1 ? 1 : 0);
+            switch (value)
+            {
+                case 3: printf("█"); break; // '\u{2588}' block
+                case 2: printf("▌"); break; // '\u{258C}' left
+                case 1: printf("▐"); break; // '\u{2590}' right
+                case 0: printf(" "); break; // '\u{0020}' space
+            }
+        }
+#else
         for (int i = 0; i < length; i++)
         {
             bool bit = BARCODE_BIT(bitmap, i);
             printf("%s", bit ? "█" : " ");	// Assumes output will be light on dark terminal, unicode \u2588
         }
+#endif
         printf("\n");
     }
 }
@@ -34,19 +52,20 @@ int main(int argc, char *argv[])
 	SetConsoleOutputCP(CP_UTF8);
 #endif
     const char *value = argv[1];
+    int quiet = BARCODE_QUIET_STANDARD;
 
     // Special decimal conversion for 6-byte addresses in the format: "01:23:45:67:89:AB"
     if (strlen(value) == 17 && value[2] == ':' && value[5] == ':' && value[8] == ':' && value[11] == ':' && value[14] == ':')
     {
         uint64_t address = ((uint64_t)strtoul(value + 0, NULL, 16) << 40) | ((uint64_t)strtoul(value + 3, NULL, 16) << 32) | ((uint64_t)strtoul(value + 6, NULL, 16) << 24) | ((uint64_t)strtoul(value + 9, NULL, 16) << 16) | ((uint64_t)strtoul(value + 12, NULL, 16) << 8) | ((uint64_t)strtoul(value + 15, NULL, 16));
-        address &= (uint64_t)0x003fffffffffffull;  // Mask off top two bits (46-bit number)
+        address &= (uint64_t)0x003fffffffffffull;   // Mask off top two bits (46-bit number)
         char buffer[14 + 1];
-        // TODO: Use PRId64 macro instead
-        sprintf(buffer, "%014llu", (long long unsigned int)address);   // Max value is 70368744177663 (14 digits)
+        sprintf(buffer, "%014"PRIu64"", address);   // Max value is 70368744177663 (14 digits)
         printf("Address: %02x:%02x:%02x:%02x:%02x:%02x\n", (int)((address >> (5*8)) & 0xff),  (int)((address >> (4*8)) & 0xff), (int)((address >> (3*8)) & 0xff), (int)((address >> (2*8)) & 0xff), (int)((address >> (1*8)) & 0xff), (int)((address) & 0xff));
         printf("Decimal: %s\n", buffer);
         value = buffer;
+        quiet = 8;
     }
-    PrintBarcode(value);
+    PrintBarcode(value, quiet);
     return 0;
 }
