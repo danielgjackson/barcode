@@ -10,7 +10,7 @@ Required files: [`barcode.h`](barcode.h) [`barcode.c`](barcode.c)
 To complete the barcode and write the object as a bitmap (0=black, 1=white) using the specified buffer:
 
 ```c
-size_t Barcode(uint8_t *buffer, size_t bufferSize, bool addQuietZone, const char *text);
+size_t Barcode(uint8_t *buffer, size_t bufferSize, int quietZone, const char *text);
 ```
 
 This returns the length in bars/bits. You may optionally add a 10-unit (white) quiet zone either side of the output.
