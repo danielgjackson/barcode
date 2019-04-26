@@ -9,6 +9,27 @@
 
 #include "barcode.h"
 
+
+
+typedef enum
+{
+    BARCODE_CODE_NONE,   // Not started
+    BARCODE_CODE_A,      // ASCII control and upper-case
+    BARCODE_CODE_B,      // ASCII non-control characters
+    BARCODE_CODE_C,      // Double-digit numeric code
+    BARCODE_CODE_STOP,   // Stopped
+} barcode_code_t;
+
+typedef unsigned char barcode_symbol_t;
+
+typedef struct {
+    barcode_symbol_t *buffer;
+    size_t bufferLength;
+    barcode_code_t code;
+    size_t length;              // In symbols
+    bool error;
+} barcode_t;
+
 // 218 bytes
 static const uint16_t code128[109] = {
     // 16-bit packed format: rwwppppppppppppp 
@@ -202,6 +223,7 @@ static void BarcodeStop(barcode_t *barcode)
     barcode->code = BARCODE_CODE_STOP;
 }
 
+// Initialize a barcode object, using the specified symbol buffer and its length (in symbols)
 void BarcodeInit(barcode_t *barcode, barcode_symbol_t *buffer, size_t bufferLength)
 {
     memset(barcode, 0, sizeof(barcode_t));
@@ -212,6 +234,7 @@ void BarcodeInit(barcode_t *barcode, barcode_symbol_t *buffer, size_t bufferLeng
     barcode->error = false;
 }
 
+// Append the specified string to the barcode
 void BarcodeAppend(barcode_t *barcode, const char *text)
 {
     for (const char *p = text; *p != '\0'; p++)
@@ -286,6 +309,7 @@ static size_t BarcodeAppendBits(uint8_t *buffer, size_t bufferSize, size_t initi
     return offset - initialOffset;
 }
 
+// Completes the barcode and writes the object as a bitmap (0=black, 1=white) using the specified buffer, returns the length in bars/bits. Optionally adds a 10-unit quiet zone either side.
 size_t BarcodeBits(barcode_t *barcode, uint8_t *buffer, size_t bufferSize, bool addQuietZone)
 {
     size_t offset = 0;
@@ -300,3 +324,16 @@ size_t BarcodeBits(barcode_t *barcode, uint8_t *buffer, size_t bufferSize, bool 
     return offset;
 }
 
+
+
+
+// Completes the barcode and writes the object as a bitmap (0=black, 1=white) using the specified buffer, returns the length in bars/bits. Optionally adds a 10-unit quiet zone either side.
+size_t Barcode(uint8_t *buffer, size_t bufferSize, bool addQuietZone, const char *text)
+{
+    barcode_t barcode;
+    barcode_symbol_t symbolBuffer[128];
+    BarcodeInit(&barcode, symbolBuffer, sizeof(symbolBuffer) / sizeof(barcode_symbol_t));
+    BarcodeAppend(&barcode, text);
+    size_t len = BarcodeBits(&barcode, buffer, bufferSize, addQuietZone);
+    return len;
+}

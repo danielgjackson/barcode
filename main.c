@@ -12,14 +12,9 @@
 
 static void PrintBarcode(const char *value)
 {
-    barcode_t barcode;
-    barcode_symbol_t barcodeBuffer[BARCODE_SYMBOLS_TEXT(64)];   // BARCODE_SYMBOLS_NUMERIC(4); BARCODE_SYMBOLS_TEXT(256);
-
-    BarcodeInit(&barcode, barcodeBuffer, sizeof(barcodeBuffer) / sizeof(barcode_symbol_t));
-    BarcodeAppend(&barcode, value);
-    uint8_t bitmap[BARCODE_BITMAP_SIZE_QUIET(sizeof(barcodeBuffer) / sizeof(barcode_symbol_t))] = {0};
-
-    size_t length = BarcodeBits(&barcode, bitmap, sizeof(bitmap), true);
+    // Completes the barcode and writes the object as a bitmap (0=black, 1=white) using the specified buffer, returns the length in bars/bits. Optionally adds a 10-unit quiet zone either side.
+    uint8_t bitmap[BARCODE_SIZE_QUIET_TEXT(128)] = {0};
+    size_t length = Barcode(bitmap, sizeof(bitmap), true, value);
 
     for (int repeat = 0; repeat < 5; repeat++)
     {
