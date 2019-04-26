@@ -150,6 +150,33 @@ static const uint16_t code128[109] = {
     0x0000, // 0b0000000000000000, 0x00000000, // 108 _NO _NO _NO =140 _NO=(none) <0 bars>
 };
 
+static void BarcodeWriteBits(barcode_t *barcode, uint16_t pattern, int width)
+{
+    for (int i = width - 1; i >= 0; i--)
+    {
+        int byteOffset = (int)barcode->offset / 8;
+//printf("%d %d/%d %s\n", i, byteOffset, barcode->bufferSize, barcode->error ? "ERROR" : "OK");
+        if (byteOffset < barcode->bufferSize)
+        {
+            uint8_t *p = barcode->buffer + byteOffset;
+            bool bit = (pattern & (1 << i)) != 0;
+            if (bit)
+            {
+                *p |= (1 << (barcode->offset & 7));
+            }
+            else
+            {
+                *p &= ~(1 << (barcode->offset & 7));
+            }
+            barcode->offset++;
+        }
+        else
+        {
+            barcode->error = true;
+        }
+    }
+}
+
 static void BarcodeAppendSymbol(barcode_t *barcode, barcode_symbol_t symbol)
 {
     if (barcode->error || barcode->code == BARCODE_CODE_STOP)
@@ -158,11 +185,17 @@ static void BarcodeAppendSymbol(barcode_t *barcode, barcode_symbol_t symbol)
         return;
     }
 
-    BarcodeAppendBits(barcode, symbol);
+    // 16-bit packed format: rwwppppppppppppp 
+    // (==0 = nothing; r = 1-bit reserved; w = 2-bits (width-10); p = 13-bit right-aligned pattern)
+    // packed hex, packed bin.,      BSBSBSbs     val  CA  CB  CC = representation
+    uint16_t pattern = code128[symbol];
+    //bool reserved = (pattern & 0x8000) != 0;
+    int width = 10 + ((pattern >> 13) & 0x03);
+    BarcodeWriteBits(barcode, pattern, width);
 
     // Update checksum
     // checksum = SUM<(i+1) * X[i]> % 103
-    barcode->checksum += (barcode->numSymbols ? 1 : barcode->numSymbols) * (uint32_t)symbol;
+    barcode->checksum += (barcode->numSymbols ? barcode->numSymbols : 1) * (uint32_t)symbol;
     barcode->checksum %= 103;
     barcode->numSymbols++;
 }
@@ -273,45 +306,15 @@ void BarcodeAppend(barcode_t *barcode, const char *text)
     }
 }
 
-static void BarcodeAppendBits(barcode_t *barcode, barcode_symbol_t symbol)
-{
-    // 16-bit packed format: rwwppppppppppppp 
-    // (==0 = nothing; r = 1-bit reserved; w = 2-bits (width-10); p = 13-bit right-aligned pattern)
-    // packed hex, packed bin.,      BSBSBSbs     val  CA  CB  CC = representation
-    uint16_t pattern = code128[symbol];
-    //bool reserved = (pattern & 0x8000) != 0;
-    int width = 10 + ((pattern >> 13) & 0x03);
-    for (int i = width - 1; i >= 0; i--)
-    {
-        int byteOffset = (int)barcode->offset / 8;
-        if (byteOffset < barcode->bufferSize)
-        {
-            uint8_t *p = barcode->buffer + byteOffset;
-            bool bit = (pattern & (1 << i)) != 0;
-            if (bit)
-            {
-                *p |= (1 << (barcode->offset & 7));
-            }
-            else
-            {
-                *p &= ~(1 << (barcode->offset & 7));
-            }
-            barcode->offset++;
-        }
-    }
-}
-
-
-
 
 // Writes the barcode as a bitmap (0=black, 1=white) using the specified buffer, returns the length in bars/bits. Optionally adds a 10-unit quiet zone either side.
-size_t Barcode(uint8_t *buffer, size_t bufferSize, bool addQuietZone, const char *text)
+size_t Barcode(uint8_t *buffer, size_t bufferSize, int quietZone, const char *text)
 {
     barcode_t barcode;
     BarcodeInit(&barcode, buffer, bufferSize);
-    if (addQuietZone) BarcodeAppendBits(&barcode, 107);
+    BarcodeWriteBits(&barcode, 0xffff, quietZone);
     BarcodeAppend(&barcode, text);
     BarcodeStop(&barcode);
-    if (addQuietZone) BarcodeAppendBits(&barcode, 107);
+    BarcodeWriteBits(&barcode, 0xffff, quietZone);
     return barcode.offset;
 }
