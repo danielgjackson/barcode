@@ -23,10 +23,16 @@ typedef enum
 typedef unsigned char barcode_symbol_t;
 
 typedef struct {
-    barcode_symbol_t *buffer;
-    size_t bufferLength;
+    barcode_symbol_t *symbolBuffer;
+    size_t symbolBufferLength;
+
+    uint8_t *buffer;
+    size_t bufferSize;
+    size_t offset;
+    uint32_t checksum;
+
     barcode_code_t code;
-    size_t length;              // In symbols
+    size_t numSymbols;
     bool error;
 } barcode_t;
 
@@ -148,13 +154,20 @@ static const uint16_t code128[109] = {
 
 static void BarcodeAppendSymbol(barcode_t *barcode, barcode_symbol_t symbol)
 {
-    if (barcode->error || barcode->code == BARCODE_CODE_STOP || barcode->length >= barcode->bufferLength)
+    if (barcode->error || barcode->code == BARCODE_CODE_STOP || barcode->numSymbols >= barcode->symbolBufferLength)
     {
         barcode->error = true;
         return;
     }
-    barcode->buffer[barcode->length] = symbol;
-    barcode->length++;
+
+    // Calculate checksum
+    // checksum = SUM<(i+1) * X[i]> % 103
+    if ((int)symbol < 106)
+    barcode->checksum += (barcode->numSymbols ? 1 : barcode->numSymbols) * (uint32_t)symbol;
+    barcode->checksum %= 103;
+
+    barcode->symbolBuffer[barcode->numSymbols] = symbol;
+    barcode->numSymbols++;
 }
 
 static void BarcodeChangeCode(barcode_t *barcode, barcode_code_t newCode)
@@ -200,23 +213,7 @@ static void BarcodeStop(barcode_t *barcode)
         BarcodeChangeCode(barcode, BARCODE_CODE_B); // will generate start
     }
     
-    // Calculate checksum
-    // checksum = SUM<(i+1) * X[i]> % 103
-    uint32_t checksum = 0;
-    for (int p = 0; p < barcode->length; p++)
-    {
-        barcode_symbol_t b = barcode->buffer[p];
-        if (p == 0)
-        {
-            checksum = (uint32_t)b;
-        }
-        else
-        {
-            checksum += p * (uint32_t)b;
-        }
-    }
-    checksum %= 103;
-    BarcodeAppendSymbol(barcode, (barcode_symbol_t)checksum);
+    BarcodeAppendSymbol(barcode, (barcode_symbol_t)barcode->checksum);
 
     // Add stop symbol
     BarcodeAppendSymbol(barcode, 106);
@@ -224,13 +221,13 @@ static void BarcodeStop(barcode_t *barcode)
 }
 
 // Initialize a barcode object, using the specified symbol buffer and its length (in symbols)
-void BarcodeInit(barcode_t *barcode, barcode_symbol_t *buffer, size_t bufferLength)
+void BarcodeInit(barcode_t *barcode, barcode_symbol_t *symbolBuffer, size_t symbolBufferLength)
 {
     memset(barcode, 0, sizeof(barcode_t));
-    barcode->buffer = buffer;
-    barcode->bufferLength = bufferLength;
+    barcode->symbolBuffer = symbolBuffer;
+    barcode->symbolBufferLength = symbolBufferLength;
     barcode->code = BARCODE_CODE_NONE;
-    barcode->length = 0;
+    barcode->numSymbols = 0;
     barcode->error = false;
 }
 
@@ -316,9 +313,9 @@ size_t BarcodeBits(barcode_t *barcode, uint8_t *buffer, size_t bufferSize, bool 
     BarcodeStop(barcode);
     if (barcode->error) return 0;
     if (addQuietZone) offset += BarcodeAppendBits(buffer, bufferSize, offset, 107);
-    for (int i = 0; i < barcode->length; i++)
+    for (int i = 0; i < barcode->numSymbols; i++)
     {
-        offset += BarcodeAppendBits(buffer, bufferSize, offset, barcode->buffer[i]);
+        offset += BarcodeAppendBits(buffer, bufferSize, offset, barcode->symbolBuffer[i]);
     }
     if (addQuietZone) offset += BarcodeAppendBits(buffer, bufferSize, offset, 107);
     return offset;
