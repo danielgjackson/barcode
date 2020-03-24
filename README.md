@@ -37,8 +37,8 @@ bool BARCODE_BIT(uint8_t *buffer, size_t offset);
 
 ## Demonstration program
 
-Demonstration program ([`main.c`](main.c)), usage:
+Demonstration program ([`main.c`](main.c)), usage (use `--invert` if your console is light-on-dark):
 
 ```bash
-barcode "TEXT TO BECOME BARCODE"
+barcode --invert "TEXT TO BECOME BARCODE"
 ```
