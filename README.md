@@ -1,6 +1,6 @@
 # Barcode
 
-Generates a CODE128 barcode.  
+Generates a CODE128 barcode.  Optimized for use in embedded environments.
 
 Required files: [`barcode.h`](barcode.h) [`barcode.c`](barcode.c)
 
