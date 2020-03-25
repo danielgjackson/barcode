@@ -2,6 +2,7 @@
 // Dan Jackson, 2019
 
 #ifdef _WIN32
+#define _CRT_SECURE_NO_WARNINGS // This is an example program only
 #include <windows.h>
 #endif
 #define __STDC_FORMAT_MACROS
@@ -65,7 +66,7 @@ static void OutputBarcodeImageBitmap(FILE *fp, uint8_t *bitmap, size_t length, i
     const int BMP_HEADERSIZE = 54;
     const int BMP_PAL_SIZE = 2 * 4;
 
-    int width = length * scale;
+    int width = (int)(length * scale);
     int span = ((width + 31) / 32) * 4;
     int bufferSize = span * height;
 

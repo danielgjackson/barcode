@@ -195,7 +195,7 @@ static void BarcodeAppendSymbol(barcode_t *barcode, barcode_symbol_t symbol)
 
     // Update checksum
     // checksum = SUM<(i+1) * X[i]> % 103
-    barcode->checksum += (barcode->numSymbols ? barcode->numSymbols : 1) * (uint32_t)symbol;
+    barcode->checksum += (barcode->numSymbols ? (uint32_t)barcode->numSymbols : 1) * (uint32_t)symbol;
     barcode->checksum %= 103;
     barcode->numSymbols++;
 }
