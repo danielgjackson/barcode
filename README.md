@@ -10,7 +10,7 @@ Required files: [`barcode.h`](barcode.h) [`barcode.c`](barcode.c)
 To generate the barcode and write the object as a bitmap (0=black, 1=white) using the specified buffer:
 
 ```c
-size_t Barcode(uint8_t *buffer, size_t bufferSize, int quietZone, const char *text);
+size_t Barcode(uint8_t *buffer, size_t bufferSize, int quietZone, const char *text, barcode_code_t fixedCode);
 ```
 
 This returns the number of bars/bits written to the buffer (up to `8 * bufferSize`). You may optionally add a (white) quiet zone either side of the output (0-16 bits): typically `BARCODE_QUIET_STANDARD` (=10) bits, or `BARCODE_QUIET_NONE` (=0) for just the raw barcode.
@@ -34,6 +34,9 @@ To find the value of a bar/bit at the specified index in the output bitmap (fals
 ```c
 bool BARCODE_BIT(uint8_t *buffer, size_t offset);
 ```
+
+Note: `fixedCode` should be `BARCODE_CODE_NONE` for automatic coding, and only changed for advanced use when you want a fixed output size -- for example, `BARCODE_CODE_A` where the text includes control characters (<32/0x20) and only ASCII codes <95/0x5F (e.g. numeric or upper-case letters); `BARCODE_CODE_B` where the text does not include control characters; or `BARCODE_CODE_C` where the text is strictly numeric and an even number of digits.
+
 
 ## Demonstration program
 

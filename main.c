@@ -17,6 +17,7 @@
 #define DEFAULT_HEIGHT 5
 
 typedef enum {
+    OUTPUT_INFO,
     OUTPUT_TEXT_WIDE,
     OUTPUT_TEXT_NARROW,
     OUTPUT_IMAGE_BITMAP,
@@ -26,6 +27,52 @@ typedef enum {
 static void fputshort(uint16_t v, FILE *fp) { fputc((uint8_t)((v >> 0) & 0xff), fp); fputc((uint8_t)((v >> 8) & 0xff), fp); }
 static void fputlong(uint32_t v, FILE *fp) { fputc((uint8_t)((v >> 0) & 0xff), fp); fputc((uint8_t)((v >> 8) & 0xff), fp); fputc((uint8_t)((v >> 16) & 0xff), fp); fputc((uint8_t)((v >> 24) & 0xff), fp); }
 
+static void OutputBarcodeInfo(FILE *fp, uint8_t *bitmap, size_t length, const char *input)
+{
+    size_t size = ((length + 7) >> 3);
+    size_t inputLength = strlen(input);
+    
+    fprintf(fp, "{\n");
+
+    fprintf(fp, "    \"value\": \"");
+    for (size_t i = 0; i < inputLength; i++)
+    {
+        char c = (char)input[i];
+        char out[5] = {0};
+        if (c < 0x20 || c >= 127)
+        {
+            sprintf(out, "\\x%02x", (unsigned int)(c & 0xff));
+        }
+        else if (c == '\\')
+        {
+            sprintf(out, "\\\\");
+        }
+        else if (c == '\"')
+        {
+            sprintf(out, "\\\"");
+        }
+        else
+        {
+            sprintf(out, "%c", c);
+        }
+        fprintf(fp, "%s", out);
+    }
+    fprintf(fp, "\",\n");
+
+    fprintf(fp, "    \"width\": %u,\n", (unsigned int)length);
+
+    fprintf(fp, "    \"bytes\": %u,\n", (unsigned int)size);
+
+    fprintf(fp, "    \"data\": [");
+    for (size_t i = 0; i < size; i++)
+    {
+        fprintf(fp, "%s0x%02x", i > 0 ? ", " : "", bitmap[i]);
+    }
+    fprintf(fp, "]\n");
+
+    fprintf(fp, "}\n");
+}
+
 static void OutputBarcodeTextWide(FILE *fp, uint8_t *bitmap, size_t length, int scale, int height, bool invert)
 {
     for (int repeat = 0; repeat < height; repeat++)
@@ -33,7 +80,7 @@ static void OutputBarcodeTextWide(FILE *fp, uint8_t *bitmap, size_t length, int 
         for (int i = 0; i < scale * length; i++)
         {
             bool bit = BARCODE_BIT(bitmap, i / scale) ^ invert;
-            fprintf(fp, "%s", bit ? " " : "█");	// \u{2588} block
+            fprintf(fp, "%s", bit ? " " : "█");    // \u{2588} block
         }
         fprintf(fp, "\n");
     }
@@ -120,6 +167,7 @@ int main(int argc, char *argv[])
     int scale = 1;
     int height = DEFAULT_HEIGHT;
     bool address = false;
+    barcode_code_t fixedCode = BARCODE_CODE_NONE;
     
     for (int i = 1; i < argc; i++)
     {
@@ -133,9 +181,14 @@ int main(int argc, char *argv[])
             ofp = fopen(argv[++i], "wb");
             if (ofp == NULL) { fprintf(stderr, "ERROR: Unable to open output filename: %s\n", argv[i]); return -1; }
         }
+        else if (!strcmp(argv[i], "--output:info")) { outputMode = OUTPUT_INFO; }
         else if (!strcmp(argv[i], "--output:wide")) { outputMode = OUTPUT_TEXT_WIDE; }
         else if (!strcmp(argv[i], "--output:narrow")) { outputMode = OUTPUT_TEXT_NARROW; }
         else if (!strcmp(argv[i], "--output:bmp")) { outputMode = OUTPUT_IMAGE_BITMAP; }
+        else if (!strcmp(argv[i], "--code:auto")) { fixedCode = BARCODE_CODE_NONE; }
+        else if (!strcmp(argv[i], "--code:a")) { fixedCode = BARCODE_CODE_A; }
+        else if (!strcmp(argv[i], "--code:b")) { fixedCode = BARCODE_CODE_B; }
+        else if (!strcmp(argv[i], "--code:c")) { fixedCode = BARCODE_CODE_C; }
         else if (!strcmp(argv[i], "--address")) { address = true; }
         else if (argv[i][0] == '-')
         {
@@ -183,7 +236,7 @@ int main(int argc, char *argv[])
 
     // Generates the barcode as a bitmap (0=black, 1=white) using the specified buffer, returns the length in bars/bits. Optionally adds a 10-unit quiet zone either side.
     uint8_t bitmap[BARCODE_SIZE_TEXT(14, BARCODE_QUIET_STANDARD)] = {0};
-    size_t length = Barcode(bitmap, sizeof(bitmap), quiet, value);
+    size_t length = Barcode(bitmap, sizeof(bitmap), quiet, value, fixedCode);
     //printf("Length = %d\n", (int)length);
 
 #ifdef _WIN32
@@ -192,6 +245,7 @@ int main(int argc, char *argv[])
 
     switch (outputMode)
     {
+        case OUTPUT_INFO: OutputBarcodeInfo(ofp, bitmap, length, value); break;
         case OUTPUT_TEXT_WIDE: OutputBarcodeTextWide(ofp, bitmap, length, scale, height, invert); break;
         case OUTPUT_TEXT_NARROW: OutputBarcodeTextNarrow(ofp, bitmap, length, scale, height, invert); break;
         case OUTPUT_IMAGE_BITMAP: OutputBarcodeImageBitmap(ofp, bitmap, length, scale, height, invert); break;

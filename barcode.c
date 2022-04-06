@@ -9,15 +9,6 @@
 
 #include "barcode.h"
 
-typedef enum
-{
-    BARCODE_CODE_NONE,   // Not started
-    BARCODE_CODE_A,      // ASCII control and upper-case
-    BARCODE_CODE_B,      // ASCII non-control characters
-    BARCODE_CODE_C,      // Double-digit numeric code
-    BARCODE_CODE_STOP,   // Stopped
-} barcode_code_t;
-
 typedef unsigned char barcode_symbol_t;
 
 typedef struct
@@ -160,13 +151,18 @@ static void BarcodeWriteBits(barcode_t *barcode, uint16_t pattern, int width)
         {
             uint8_t *p = barcode->buffer + byteOffset;
             bool bit = (pattern & (1 << i)) != 0;
+#ifdef BARCODE_MSB_FIRST
+            uint8_t mask = (1 << (7 - (barcode->offset & 7)));
+#else
+            uint8_t mask = (1 << (barcode->offset & 7));
+#endif
             if (bit)
             {
-                *p |= (1 << (barcode->offset & 7));
+                *p |= mask;
             }
             else
             {
-                *p &= ~(1 << (barcode->offset & 7));
+                *p &= ~mask;
             }
             barcode->offset++;
         }
@@ -262,7 +258,7 @@ void BarcodeInit(barcode_t *barcode, uint8_t *buffer, size_t bufferSize)
 }
 
 // Append the specified string to the barcode
-void BarcodeAppend(barcode_t *barcode, const char *text)
+void BarcodeAppend(barcode_t *barcode, const char *text, barcode_code_t fixedCode)
 {
     for (const char *p = text; *p != '\0'; p++)
     {
@@ -276,8 +272,10 @@ void BarcodeAppend(barcode_t *barcode, const char *text)
         if (c0 >= 0 && c0 < 32) requiredCode = BARCODE_CODE_A;
         if (c0 >= '\'' && c0 <= 0x7f) requiredCode = BARCODE_CODE_B;
 
+        if (fixedCode != BARCODE_CODE_NONE) requiredCode = fixedCode;
+
         // Code C if there are two numerical digits, but not if we're already in another code and there isn't a third and fourth.
-        if (c0 != 0 && c1 != 0 && isdigit(c0) && isdigit(c1) && !((!isdigit(c2) || !isdigit(c3)) && (barcode->code == BARCODE_CODE_A || barcode->code == BARCODE_CODE_B)))
+        if (c0 != 0 && c1 != 0 && isdigit(c0) && isdigit(c1) && !((!isdigit(c2) || !isdigit(c3)) && (barcode->code == BARCODE_CODE_A || barcode->code == BARCODE_CODE_B)) && fixedCode == BARCODE_CODE_NONE)
         {
             BarcodeChangeCode(barcode, BARCODE_CODE_C);
             BarcodeAppendSymbol(barcode, (barcode_symbol_t)( (c0 - '0') * 10 + (c1 - '0') ));  // Code C double digits
@@ -308,12 +306,12 @@ void BarcodeAppend(barcode_t *barcode, const char *text)
 
 
 // Writes the barcode as a bitmap (0=black, 1=white) using the specified buffer, returns the length in bars/bits. Optionally adds a 10-unit quiet zone either side.
-size_t Barcode(uint8_t *buffer, size_t bufferSize, int quietZone, const char *text)
+size_t Barcode(uint8_t *buffer, size_t bufferSize, int quietZone, const char *text, barcode_code_t fixedCode)
 {
     barcode_t barcode;
     BarcodeInit(&barcode, buffer, bufferSize);
     BarcodeWriteBits(&barcode, 0xffff, quietZone);
-    BarcodeAppend(&barcode, text);
+    BarcodeAppend(&barcode, text, fixedCode);
     BarcodeStop(&barcode);
     BarcodeWriteBits(&barcode, 0xffff, quietZone);
     return barcode.offset;
