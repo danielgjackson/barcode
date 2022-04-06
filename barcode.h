@@ -7,6 +7,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Global setting to store in to most significant bit first (least significant bit first otherwise)
 #define BARCODE_MSB_FIRST
 
@@ -54,6 +58,10 @@ size_t Barcode(uint8_t *buffer, size_t bufferSize, int quietZone, const char *te
     #define BARCODE_BIT(_buffer, _offset) ((*((uint8_t *)(_buffer) + ((_offset) >> 3)) & (1 << (7 - ((_offset) & 7)))) != 0)
 #else
     #define BARCODE_BIT(_buffer, _offset) ((*((uint8_t *)(_buffer) + ((_offset) >> 3)) & (1 << ((_offset) & 7))) != 0)
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif
