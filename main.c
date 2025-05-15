@@ -21,6 +21,7 @@ typedef enum {
     OUTPUT_TEXT_WIDE,
     OUTPUT_TEXT_NARROW,
     OUTPUT_IMAGE_BITMAP,
+    OUTPUT_SIXEL,
 } output_mode_t;
 
 // Endian-independent short/long read/write
@@ -156,6 +157,50 @@ static void OutputBarcodeImageBitmap(FILE *fp, uint8_t *bitmap, size_t length, i
 }
 
 
+static void OutputBarcodeSixel(FILE *fp, uint8_t *bitmap, size_t length, int scale, int height, bool invert)
+{
+    const int LINE_HEIGHT = 6;
+    // Enter sixel mode
+    fprintf(fp, "\x1BP7;1q");    // 1:1 ratio, 0 pixels remain at current color
+    // Set color map
+    fprintf(fp, "#0;2;0;0;0");       // Background
+    fprintf(fp, "#1;2;100;100;100");
+    for (int y = 0; y < height; y += LINE_HEIGHT)
+    {
+        const int passes = 2;
+        for (int pass = 0; pass < passes; pass++)
+        {
+            // Start a pass in a specific color
+            fprintf(fp, "#%d", pass);
+            // Line data
+            for (int x = 0; x < scale * length; x += scale)
+            {
+                int value = 0;
+                for (int yy = 0; yy < LINE_HEIGHT; yy++) {
+                    if (y + yy >= height * scale) break;
+                    int bitValue = (BARCODE_BIT(bitmap, x / scale) ^ invert) ? 1 : 0;
+                    int bit = (bitValue == pass) ? 1 : 0;
+                    value |= (bit ? 0x01 : 0x00) << yy;
+                }
+                // Six pixels strip at 'scale' (repeated) width
+                fprintf(fp, "!%d%c", scale, value + 63);
+            }
+            // Return to start of the line
+            if (pass + 1 < passes) {
+                fprintf(fp, "$");
+            }
+        }
+        // Next line
+        if (y + LINE_HEIGHT < height * scale) {
+            fprintf(fp, "-");
+        }
+    }
+    // Exit sixel mode
+    fprintf(fp, "\x1B\\");
+    fprintf(fp, "\n");
+}
+
+
 int main(int argc, char *argv[])
 {
     FILE *ofp = stdout;
@@ -164,11 +209,11 @@ int main(int argc, char *argv[])
     bool invert = false;
     int quiet = BARCODE_QUIET_STANDARD;
     output_mode_t outputMode = OUTPUT_TEXT_NARROW;
-    int scale = 1;
-    int height = DEFAULT_HEIGHT;
+    int scale = -1;
+    int height = -1;
     bool address = false;
     barcode_code_t fixedCode = BARCODE_CODE_NONE;
-    
+
     for (int i = 1; i < argc; i++)
     {
         if (!strcmp(argv[i], "--help")) { help = true; }
@@ -185,6 +230,7 @@ int main(int argc, char *argv[])
         else if (!strcmp(argv[i], "--output:wide")) { outputMode = OUTPUT_TEXT_WIDE; }
         else if (!strcmp(argv[i], "--output:narrow")) { outputMode = OUTPUT_TEXT_NARROW; }
         else if (!strcmp(argv[i], "--output:bmp")) { outputMode = OUTPUT_IMAGE_BITMAP; }
+        else if (!strcmp(argv[i], "--output:sixel")) { outputMode = OUTPUT_SIXEL; }
         else if (!strcmp(argv[i], "--code:auto")) { fixedCode = BARCODE_CODE_NONE; }
         else if (!strcmp(argv[i], "--code:a")) { fixedCode = BARCODE_CODE_A; }
         else if (!strcmp(argv[i], "--code:b")) { fixedCode = BARCODE_CODE_B; }
@@ -216,7 +262,7 @@ int main(int argc, char *argv[])
 
     if (help)
     {
-        fprintf(stderr, "USAGE: barcode [--height 5] [--scale 1] [--quiet 10] [--invert] [--output:<wide|narrow|bmp>] [--file filename] <value>\n"); 
+        fprintf(stderr, "USAGE: barcode [--height 5] [--scale 1] [--quiet 10] [--invert] [--output:<wide|narrow|bmp|sixel>] [--file filename] <value>\n"); 
         return -1;
     }
 
@@ -234,6 +280,16 @@ int main(int argc, char *argv[])
         quiet = 8;
     }
 
+    // Defaults
+    if (height < 0)
+    {
+        height = (outputMode == OUTPUT_SIXEL || outputMode == OUTPUT_IMAGE_BITMAP) ? 30 : DEFAULT_HEIGHT;
+    }
+    if (scale < 0)
+    {
+        scale = (outputMode == OUTPUT_SIXEL || outputMode == OUTPUT_IMAGE_BITMAP) ? 1 : 1;
+    }
+
     // Generates the barcode as a bitmap (0=black, 1=white) using the specified buffer, returns the length in bars/bits. Optionally adds a 10-unit quiet zone either side.
     uint8_t bitmap[BARCODE_SIZE_TEXT(14, BARCODE_QUIET_STANDARD)] = {0};
     size_t length = Barcode(bitmap, sizeof(bitmap), quiet, value, fixedCode);
@@ -249,6 +305,7 @@ int main(int argc, char *argv[])
         case OUTPUT_TEXT_WIDE: OutputBarcodeTextWide(ofp, bitmap, length, scale, height, invert); break;
         case OUTPUT_TEXT_NARROW: OutputBarcodeTextNarrow(ofp, bitmap, length, scale, height, invert); break;
         case OUTPUT_IMAGE_BITMAP: OutputBarcodeImageBitmap(ofp, bitmap, length, scale, height, invert); break;
+        case OUTPUT_SIXEL: OutputBarcodeSixel(ofp, bitmap, length, scale, height, invert); break;
         default: fprintf(ofp, "<error>"); break;
     }
 

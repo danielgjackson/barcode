@@ -150,7 +150,7 @@ static void BarcodeWriteBits(barcode_t *barcode, uint16_t pattern, int width)
         if (byteOffset < barcode->bufferSize)
         {
             uint8_t *p = barcode->buffer + byteOffset;
-            bool bit = (pattern & (1 << i)) != 0;
+            bool bit = (pattern & (1 << (i & 15))) != 0;
 #ifdef BARCODE_MSB_FIRST
             uint8_t mask = (1 << (7 - (barcode->offset & 7)));
 #else
