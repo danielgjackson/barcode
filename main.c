@@ -183,7 +183,15 @@ static void OutputBarcodeSixel(FILE *fp, uint8_t *bitmap, size_t length, int sca
                     value |= (bit ? 0x01 : 0x00) << yy;
                 }
                 // Six pixels strip at 'scale' (repeated) width
-                fprintf(fp, "!%d%c", scale, value + 63);
+                if (scale == 1) {
+                    fprintf(fp, "%c", value + 63);
+                } else if (scale == 2) {
+                    fprintf(fp, "%c%c", value + 63, value + 63);
+                } else if (scale == 3) {
+                    fprintf(fp, "%c%c%c", value + 63, value + 63, value + 63);
+                } else if (scale > 3) {
+                    fprintf(fp, "!%d%c", scale, value + 63);
+                }
             }
             // Return to start of the line
             if (pass + 1 < passes) {
