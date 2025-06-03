@@ -22,6 +22,7 @@ typedef enum {
     OUTPUT_TEXT_NARROW,
     OUTPUT_IMAGE_BITMAP,
     OUTPUT_SIXEL,
+    OUTPUT_TGP,
 } output_mode_t;
 
 // Endian-independent short/long read/write
@@ -209,6 +210,65 @@ static void OutputBarcodeSixel(FILE *fp, uint8_t *bitmap, size_t length, int sca
 }
 
 
+// TGP - Terminal Graphics Protocol
+static void OutputBarcodeTerminalGraphicsProtocol(FILE *fp, uint8_t *bitmap, size_t length, int scale, int height, bool invert)
+{
+    // Image buffer
+    bool alpha = false;
+    size_t imageBufferSize = (size_t)(height * length * scale * (alpha ? 4 : 3));
+    unsigned char *imageBuffer = (unsigned char *)malloc(imageBufferSize);
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < scale * length; x++)
+        {
+            int bitValue = (BARCODE_BIT(bitmap, x / scale) ^ invert) ? 1 : 0;
+            int ofs = (y * length * scale + x) * (alpha ? 4 : 3);
+            imageBuffer[ofs + 0] = bitValue ? 0xff : 0x00; // R
+            imageBuffer[ofs + 1] = bitValue ? 0xff : 0x00; // G
+            imageBuffer[ofs + 2] = bitValue ? 0xff : 0x00; // B
+        }
+    }
+
+    // Convert to Base64
+    size_t base64Size = ((imageBufferSize + 2) / 3) * 4;
+    char *base64Buffer = (char *)malloc(base64Size + 1);
+    // Manually encode to Base64
+    const char *base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    for (size_t i = 0; i < imageBufferSize; i += 3)
+    {
+        uint32_t value = (imageBuffer[i] << 16) | (i + 1 < imageBufferSize ? (imageBuffer[i + 1] << 8) : 0) | (i + 2 < imageBufferSize ? imageBuffer[i + 2] : 0);
+        size_t ofs = (i / 3) * 4;
+        base64Buffer[ofs++] = base64Chars[(value >> 18) & 0x3f];
+        base64Buffer[ofs++] = base64Chars[(value >> 12) & 0x3f];
+        base64Buffer[ofs++] = (i + 1 < imageBufferSize) ? base64Chars[(value >> 6) & 0x3f] : '=';
+        base64Buffer[ofs++] = (i + 2 < imageBufferSize) ? base64Chars[value & 0x3f] : '=';
+    }
+
+    // Chunked output
+    int MAX_CHUNK_SIZE = 4096;
+    char initialControls[256];
+    for (size_t i = 0; i < base64Size; i += MAX_CHUNK_SIZE) {
+        int chunkSize = (i + MAX_CHUNK_SIZE < base64Size) ? MAX_CHUNK_SIZE : (base64Size - i);
+        char *chunk = base64Buffer + i;
+        if (i == 0) {
+            // action transmit and display (a=T), direct transfer (t=d), uncompressed (o=), 3/4 bytes per pixel (f=24/32 bits per pixel), no responses at all (q=2)
+            sprintf(initialControls, "a=T,f=%d,s=%d,v=%d,t=d,q=2,", alpha ? 32 : 24, (int)(length * scale), (int)(height));
+        } else {
+            initialControls[0] = '\0';
+        }
+        int nonTerminal = (i + MAX_CHUNK_SIZE < base64Size) ? 1 : 0;
+        fprintf(fp, "\x1B_G%sm=%d;%.*s\x1B\\", initialControls, nonTerminal, (int)chunkSize, chunk);
+    }
+    fprintf(fp, "\n");
+
+    // Clear up buffers
+    free(base64Buffer);
+    free(imageBuffer);
+
+    return;
+}
+
+
 int main(int argc, char *argv[])
 {
     FILE *ofp = stdout;
@@ -239,6 +299,7 @@ int main(int argc, char *argv[])
         else if (!strcmp(argv[i], "--output:narrow")) { outputMode = OUTPUT_TEXT_NARROW; }
         else if (!strcmp(argv[i], "--output:bmp")) { outputMode = OUTPUT_IMAGE_BITMAP; }
         else if (!strcmp(argv[i], "--output:sixel")) { outputMode = OUTPUT_SIXEL; }
+        else if (!strcmp(argv[i], "--output:tgp")) { outputMode = OUTPUT_TGP; }
         else if (!strcmp(argv[i], "--code:auto")) { fixedCode = BARCODE_CODE_NONE; }
         else if (!strcmp(argv[i], "--code:a")) { fixedCode = BARCODE_CODE_A; }
         else if (!strcmp(argv[i], "--code:b")) { fixedCode = BARCODE_CODE_B; }
@@ -270,7 +331,7 @@ int main(int argc, char *argv[])
 
     if (help)
     {
-        fprintf(stderr, "USAGE: barcode [--height 5] [--scale 1] [--quiet 10] [--invert] [--output:<wide|narrow|bmp|sixel>] [--file filename] <value>\n"); 
+        fprintf(stderr, "USAGE: barcode [--height 5] [--scale 1] [--quiet 10] [--invert] [--output:<wide|narrow|bmp|sixel|tgp>] [--file filename] <value>\n"); 
         return -1;
     }
 
@@ -291,11 +352,11 @@ int main(int argc, char *argv[])
     // Defaults
     if (height < 0)
     {
-        height = (outputMode == OUTPUT_SIXEL || outputMode == OUTPUT_IMAGE_BITMAP) ? 30 : DEFAULT_HEIGHT;
+        height = (outputMode == OUTPUT_SIXEL || outputMode == OUTPUT_TGP || outputMode == OUTPUT_IMAGE_BITMAP) ? 30 : DEFAULT_HEIGHT;
     }
     if (scale < 0)
     {
-        scale = (outputMode == OUTPUT_SIXEL || outputMode == OUTPUT_IMAGE_BITMAP) ? 1 : 1;
+        scale = (outputMode == OUTPUT_SIXEL || outputMode == OUTPUT_TGP || outputMode == OUTPUT_IMAGE_BITMAP) ? 1 : 1;
     }
 
     // Generates the barcode as a bitmap (0=black, 1=white) using the specified buffer, returns the length in bars/bits. Optionally adds a 10-unit quiet zone either side.
@@ -314,6 +375,7 @@ int main(int argc, char *argv[])
         case OUTPUT_TEXT_NARROW: OutputBarcodeTextNarrow(ofp, bitmap, length, scale, height, invert); break;
         case OUTPUT_IMAGE_BITMAP: OutputBarcodeImageBitmap(ofp, bitmap, length, scale, height, invert); break;
         case OUTPUT_SIXEL: OutputBarcodeSixel(ofp, bitmap, length, scale, height, invert); break;
+        case OUTPUT_TGP: OutputBarcodeTerminalGraphicsProtocol(ofp, bitmap, length, scale, height, invert); break;
         default: fprintf(ofp, "<error>"); break;
     }
 
